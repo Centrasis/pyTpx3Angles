@@ -1,2 +1,2 @@
-# pyTpx3Angles
-Python Binding of Timepix3 dosimetric library
+## Tpx3Angles
+[To be written]

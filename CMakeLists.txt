@@ -26,7 +26,7 @@ execute_process(COMMAND "git" "submodule" "update" "--init" WORKING_DIRECTORY "$
 
 message(STATUS "Build pybind...")
 execute_process(COMMAND "cmake" "-S" "." "-B" "build" WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/pybind11")
-execute_process(COMMAND "cmake" "--build" "build" "-j" "4" WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/pybind11")
+execute_process(COMMAND "cmake" "--build" "build" "-j4" WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/pybind11")
 execute_process(COMMAND "cmake" "--install" "build" WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/pybind11")
 
 if(${USE_LibKatherine} MATCHES ON)
