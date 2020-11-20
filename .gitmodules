@@ -1,3 +1,6 @@
 [submodule "cxx"]
 	path = cxx
 	url = https://github.com/ftl999/TimePix3DosimetricLibrary.git
+[submodule "pybind11"]
+	path = pybind11
+	url = https://github.com/pybind/pybind11.git
