@@ -3,6 +3,7 @@
 #include <RadiationAngleReconstructor.h>
 #include <Tpx3DosageMeasurement.h>
 #include <PostprocessingThread.h>
+#include <OpenCLExecutor.h>
 #include <string>
 #undef ssize_t
 #include <pybind11/pybind11.h>
@@ -14,13 +15,42 @@
 #define VERSION_INFO "0.0.1"
 #endif
 
+void initializeExecutor(bool cmdAskPlatformAndDevice) 
+{
+    int deviceIdx = 0;
+    int platformIdx = 0;
+
+    if (cmdAskPlatformAndDevice) {
+        std::cout << "Choose OpenCL Platform:" << std::endl;
+        int i = 0;
+        for(auto p : OpenCLExecutor::GetPlatforms())
+            std::cout << "\t" << std::to_string(i++) << "  " << p << std::endl;
+        
+        std::cin >> platformIdx;
+
+        std::cout << "Choose OpenCL Device:" << std::endl;
+        i = 0;
+        for (auto p : OpenCLExecutor::GetDevices(platformIdx))
+            std::cout << "\t" << std::to_string(i++) << "  " << p << std::endl;
+        
+        std::cin >> deviceIdx;
+    }
+	OpenCLExecutor::getExecutor().InitPlatform(platformIdx, deviceIdx);
+}
+
 namespace py = pybind11;
 
-PYBIND11_MODULE(Tpx3Angles, m) {
+PYBIND11_MODULE(pyTimepixAngles, m) {
+    m.def("initializeExecutor", initializeExecutor, py::arg("cmdAskPlatformAndDevice"));
+
     py::class_<katherine_coord_t>(m, "katherine_coord_t")
         .def(py::init())
         .def_readwrite("x", &katherine_coord_t::x)
-        .def_readwrite("y", &katherine_coord_t::y);
+        .def_readwrite("y", &katherine_coord_t::y)
+        .def("__repr__",
+            [](katherine_coord_t& a) {
+                return "<katherine_coord_t (x: " + std::to_string(a.x) + ", y: " + std::to_string(a.y) + ")>";
+            });
 
     py::class_<katherine_px_f_toa_tot>(m, "katherine_px_f_toa_tot")
         .def(py::init())
@@ -104,7 +134,9 @@ PYBIND11_MODULE(Tpx3Angles, m) {
         .def(py::init())
         .def_readwrite("radiusX", &FShadow::radiusX)
         .def_readwrite("radiusY", &FShadow::radiusY)
-        .def_readwrite("direction", &FShadow::direction);
+        .def_readwrite("direction", &FShadow::direction)
+        .def("getCenterX", [](FShadow& s) { return s.middle[0]; })
+        .def("getCenterY", [](FShadow& s) { return s.middle[1]; });
 
     py::class_<FShadowSetup>(m, "FShadowSetup")
         .def(py::init())
@@ -113,25 +145,50 @@ PYBIND11_MODULE(Tpx3Angles, m) {
         .def_readwrite("singleShadows", &FShadowSetup::singleShadows);
 
     py::class_<RadiationAngleReconstructor>(m, "RadiationAngleReconstructor")
-        .def(py::init())
+        .def(py::init<std::shared_ptr<OCLMemoryVariable<cl::Image2D>>>())
         .def_static("SetFilterSetup", &RadiationAngleReconstructor::SetFilterSetup)
+        .def_static("getShadowSetup", &RadiationAngleReconstructor::getShadowSetup)
+        .def_static("SetShadowThreshold", [](const float& val) { RadiationAngleReconstructor::ShadowThreshold = val; })
+        .def_static("GetShadowThreshold", []() { return RadiationAngleReconstructor::ShadowThreshold; })
+        .def_static("SetMaxThreadCount", [](const size_t& val) { RadiationAngleReconstructor::MaxThreadCount = val; })
+        .def_static("GetMaxThreadCount", []() { return RadiationAngleReconstructor::MaxThreadCount; })
+        .def_static("SetPreviousFoundRotation", [](const FVector2D& val) { RadiationAngleReconstructor::previousFoundRotation[0] = val.X; RadiationAngleReconstructor::previousFoundRotation[1] = val.Y; })
+        .def_static("GetPreviousFoundRotation", []() { return FVector2D(RadiationAngleReconstructor::previousFoundRotation[0], RadiationAngleReconstructor::previousFoundRotation[1]); })
+        .def_static("SetCurrentScore", [](const float& val) { RadiationAngleReconstructor::currentScore = val; })
+        .def_static("GetCurrentScore", []() { return RadiationAngleReconstructor::currentScore; })
+        .def("calcParallelInRayAngle", &RadiationAngleReconstructor::calcParallelInRayAngle)
         .def("__repr__",
             [](RadiationAngleReconstructor& a) {
-                return "<RadiationAngleReconstructor " + std::to_string((int)&a) + ">";
+                return "<RadiationAngleReconstructor prevRot: (x: " + std::to_string(RadiationAngleReconstructor::previousFoundRotation[0]) + ", y: " + std::to_string(RadiationAngleReconstructor::previousFoundRotation[1]) + ")>";
             });
 
     py::class_<OCLTypedRingBuffer<katherine_px_f_toa_tot_t, PixelDataBufferSize>>(m, "OCLKatherineDataBuffer")
         .def(py::init());
-        /*.def("readNext", [](OCLTypedRingBuffer<katherine_px_f_toa_tot_t, PixelDataBufferSize>& a) { return a.readNext(); })
-        .def("readAll", &OCLTypedRingBuffer<katherine_px_f_toa_tot_t, PixelDataBufferSize>::readAll);*/
+        //.def("readNext", [](OCLTypedRingBuffer<katherine_px_f_toa_tot_t, PixelDataBufferSize>& a) { return a.readNext(); })
+        //.def("readAll", &OCLTypedRingBuffer<katherine_px_f_toa_tot_t, PixelDataBufferSize>::readAll);
+
+    py::enum_<EOCLAccessTypes>(m, "EOCLAccessTypes")
+        .value("ATRead", EOCLAccessTypes::ATRead)
+        .value("ATWrite", EOCLAccessTypes::ATWrite)
+        .value("ATReadWrite", EOCLAccessTypes::ATReadWrite)
+        .value("ATReadCopy", EOCLAccessTypes::ATReadCopy)
+        .export_values();
 
     py::class_<OCLMemoryVariable<cl::Image2D>>(m, "OCLImage2D")
+        .def(py::init())
+        .def("setHostPointerMode", &OCLMemoryVariable<cl::Image2D>::setHostPointerMode)
+        .def("setHostPointer", &OCLMemoryVariable<cl::Image2D>::setHostPointer)
+        .def("setVariableChanged", &OCLMemoryVariable<cl::Image2D>::setVariableChanged)
+        .def("makeShared", [](OCLMemoryVariable<cl::Image2D>& a) { return std::make_shared<OCLMemoryVariable<cl::Image2D>>(a); });
+
+    py::class_<OCLDynamicTypedBuffer<FShadow>>(m, "OCLShadowBuffer")
         .def(py::init());
 
     py::class_<std::function<void(OCLTypedRingBuffer<katherine_px_f_toa_tot_t, PixelDataBufferSize>* list, size_t begin, size_t end)>>(m, "FProcessingRawPixelEvent").def(py::init<>());
     py::class_<std::function<void(std::shared_ptr<OCLMemoryVariable<cl::Image2D>> image)>>(m, "FProcessingIntegratedResultEvent").def(py::init<>());
     py::class_<std::function<void(std::shared_ptr<OCLMemoryVariable<cl::Image2D>> image, FVector3D& angles, FShadowSetup& shadows, uint64_t passedTime_ns)>>(m, "FProcessingShadowResultEvent").def(py::init<>());
     py::class_<std::function<void(std::shared_ptr<ClusterList> clusters)>>(m, "FDosimetricEvent").def(py::init<>());
+    py::class_<std::function<void(std::shared_ptr<OCLMemoryVariable<cl::Image2D>> image, FVector3D& angles, FShadowSetup& shadows)>>(m, "FOnAngleCalcFinished").def(py::init<>());
 
     py::class_<PostprocessingThread>(m, "PostprocessingThread")
         .def("addProcessingMethod", static_cast<void (PostprocessingThread::*)(FProcessingRawPixelEvent, bool)>(&PostprocessingThread::addProcessingMethod))
@@ -159,6 +216,7 @@ PYBIND11_MODULE(Tpx3Angles, m) {
         .def("doDataDrivenMode", [](Tpx3DosageMeasurement& a) { return a.doDataDrivenMode(); })
 #endif  
         .def("abortDataReadout", &Tpx3DosageMeasurement::abortDataReadout)
+        .def("abortDataReadout", &Tpx3DosageMeasurement::abortDataReadout)
         .def("getPostProcessingThread", &Tpx3DosageMeasurement::getPostProcessingThread)
         .def("getCurrentFrame", &Tpx3DosageMeasurement::getCurrentFrame)
         .def("getCurrentFrameWithFoundShadows", &Tpx3DosageMeasurement::getCurrentFrameWithFoundShadows)
@@ -170,6 +228,7 @@ PYBIND11_MODULE(Tpx3Angles, m) {
         .def("getHitsPerSecond", &Tpx3DosageMeasurement::getHitsPerSecond)
         .def("setFilterSetup", &Tpx3DosageMeasurement::setFilterSetup)
         .def("getFilterSetup", &Tpx3DosageMeasurement::getFilterSetup)
+        .def("setIntegrationTime", &Tpx3DosageMeasurement::setIntegrationTime, py::arg("time_ns"))
         
 #ifdef __SIMULATION__
         .def("SetSimulationFileName", &Tpx3DosageMeasurement::getCurrentFrameWithFoundShadows)
@@ -183,6 +242,6 @@ PYBIND11_MODULE(Tpx3Angles, m) {
                 return "<Tpx3DosageMeasurement SIMULATION<>>";
 #endif
             });
-
+    
     m.attr("__version__") = VERSION_INFO;
 }
