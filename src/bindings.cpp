@@ -174,10 +174,14 @@ PYBIND11_MODULE(pyTimepixAngles, m) {
         .value("ATReadCopy", EOCLAccessTypes::ATReadCopy)
         .export_values();
 
+    py::class_<std::shared_ptr<OCLMemoryVariable<cl::Image2D>>>(m, "OCLImage2DShared").def(py::init());
+
     py::class_<OCLMemoryVariable<cl::Image2D>>(m, "OCLImage2D")
         .def(py::init())
         .def("setHostPointerMode", &OCLMemoryVariable<cl::Image2D>::setHostPointerMode)
-        .def("setHostPointer", &OCLMemoryVariable<cl::Image2D>::setHostPointer)
+        .def("setHostPointer", [](OCLMemoryVariable<cl::Image2D>& self, py::array_t<uint8_t>& img) {
+            self.setHostPointer((void*) &img);
+        })
         .def("setVariableChanged", &OCLMemoryVariable<cl::Image2D>::setVariableChanged)
         .def("makeShared", [](OCLMemoryVariable<cl::Image2D>& a) { return std::make_shared<OCLMemoryVariable<cl::Image2D>>(a); });
 

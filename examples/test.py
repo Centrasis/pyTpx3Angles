@@ -26,6 +26,7 @@ def getImgAt(basePath: str, qualli: str, degree: float, frameNumber: int):
     return cv2.imread(p)
 
 def onCalcFinished(image, angles: ta.FVector3D, shadows: ta.FShadowSetup):
+    print("Calc finished!")
     setup = ta.RadiationAngleReconstructor.getShadowSetup()
     angles.X = angles.X * (180.0 / math.pi)
     angles.Y = angles.Y * (180.0 / math.pi)
@@ -98,7 +99,11 @@ if __name__ == "__main__":
                 integratedPixels.setVariableChanged(True)
 
                 print("Start calc of: " + str(expectedAngles[i - 1]))
-                rar = ta.RadiationAngleReconstructor(integratedPixels.makeShared()).calcParallelInRayAngle(onCalcFinished)
+                rar = ta.RadiationAngleReconstructor(integratedPixels.makeShared())
+                print(rar)
+                rar.calcParallelInRayAngle(onCalcFinished)
+                print(rar)
 
-                while(not finished):
-                    pass
+                cv2.waitKey(5000)
+
+                print(rar)
