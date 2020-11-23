@@ -1,5 +1,5 @@
 cmake_minimum_required (VERSION 3.9)
-PROJECT(pyTimepixAngles CXX)
+PROJECT(pyTimepixAngles LANGUAGES CXX)
 
 get_directory_property(hasParent PARENT_DIRECTORY)
 
@@ -10,6 +10,18 @@ option(BUILD_PYBIND "Build and install pybind from source" OFF)
 
 set (CMAKE_CXX_FLAGS "/std:c++17 /EHsc /MP") 
 set (CMAKE_C_FLAGS "/std:c17 /EHsc /MP")
+set(PYBIND11_CPP_STANDARD -std=c++17)
+set(PYBIND11_PYTHON_VERSION 3.8)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release)
+endif()
+
+set(PYTHON_LIBRARY_DIR "C:/Users/felix/AppData/Roaming/Python/Python38/site-packages")
+
 SET(local_TPX_LIBS_DBG "")
 SET(local_TPX_LIBS_REL "")
 SET(local_TPX_INCLUDES "")
@@ -70,9 +82,9 @@ add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/cxx/Tpx3Dosi" "${CMAKE_CURRENT_SOU
 list(APPEND local_TPX_INCLUDES "${CMAKE_CURRENT_SOURCE_DIR}/cxx/Tpx3Dosi/include")
 list(APPEND local_TPX_INCLUDES "${CMAKE_CURRENT_SOURCE_DIR}/cxx/OCLDaMa/includes")
 list(APPEND local_TPX_LIBS_REL "${CMAKE_CURRENT_SOURCE_DIR}/cxx/Tpx3Dosi/lib/Release/katherinetimepix.lib")	
-list(APPEND local_TPX_LIBS_DBG "${CMAKE_CURRENT_SOURCE_DIR}/cxx/Tpx3Dosi/lib/Debug/katherinetimepix.lib")
+list(APPEND local_TPX_LIBS_DBG "${CMAKE_CURRENT_SOURCE_DIR}/cxx/Tpx3Dosi/lib/Release/katherinetimepix.lib")
 list(APPEND local_TPX_LIBS_REL "${CMAKE_CURRENT_SOURCE_DIR}/cxx/OCLDaMa/lib/Release/oclDAMA.lib")	
-list(APPEND local_TPX_LIBS_DBG "${CMAKE_CURRENT_SOURCE_DIR}/cxx/OCLDaMa/lib/Debug/oclDAMA.lib")
+list(APPEND local_TPX_LIBS_DBG "${CMAKE_CURRENT_SOURCE_DIR}/cxx/OCLDaMa/lib/Release/oclDAMA.lib")
 
 if(${USE_CompiletimeRessources} MATCHES ON)
     if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/opencl")
@@ -88,8 +100,7 @@ endif()
 find_package(Python COMPONENTS Interpreter Development REQUIRED)
 find_package(pybind11 CONFIG REQUIRED)
 #add_subdirectory(pybind11)
-pybind11_add_module(pyTimepixAngles src/bindings.cpp)
-target_link_libraries(pyTimepixAngles PRIVATE debug ${local_TPX_LIBS_DBG})
-target_link_libraries(pyTimepixAngles PRIVATE optimized ${local_TPX_LIBS_REL})
+pybind11_add_module(pyTimepixAngles MODULE src/bindings.cpp)
+target_link_libraries(pyTimepixAngles PUBLIC debug ${local_TPX_LIBS_DBG} optimized ${local_TPX_LIBS_REL})
 target_compile_definitions(pyTimepixAngles PUBLIC ${compiler_defs})
 target_include_directories(pyTimepixAngles PUBLIC ${local_TPX_INCLUDES})

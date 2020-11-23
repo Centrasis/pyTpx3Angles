@@ -3,11 +3,21 @@ import re
 import sys
 import platform
 import subprocess
+import shutil, errno
+
+import sysconfig
 
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
 from distutils.version import LooseVersion
 
+def copyanything(src, dst):
+    try:
+        shutil.copytree(src, dst)
+    except OSError as exc: # python >2.5
+        if exc.errno == errno.ENOTDIR:
+            shutil.copy(src, dst)
+        else: raise
 
 class CMakeExtension(Extension):
     def __init__(self, name, sourcedir=''):
@@ -57,12 +67,13 @@ class CMakeBuild(build_ext):
                                                               self.distribution.get_version())
         if not os.path.exists(self.build_temp):
             os.makedirs(self.build_temp)
+        
         subprocess.check_call(['cmake', ext.sourcedir] + cmake_args, cwd=self.build_temp, env=env)
         subprocess.check_call(['cmake', '--build', '.'] + build_args, cwd=self.build_temp)
 
 setup(
-    name='Tpx3Angles',
-    version='0.0.1',
+    name='pyTimepixAngles',
+    version='0.0.2',
     author='Felix Lehner',
     author_email='felix.lehner@ptb.de',
     description='A pybinding for a C++ OpenCL library for offline and online radiation angle detection using a timepix3 device.',
